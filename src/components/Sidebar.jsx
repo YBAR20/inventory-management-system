@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 
-export const Sidebar = () => {
+export const Sidebar = ({ mobileOpen, setMobileOpen }) => {
   const { db, currentUser, activePage, setActivePage, logout } = useApp();
   const isAdmin = currentUser?.sysRole === 'admin';
 
@@ -10,52 +10,72 @@ export const Sidebar = () => {
       activePage === page ? 'bg-accent font-bold pl-5 text-white' : 'bg-white/5 hover:bg-accent hover:pl-5 hover:font-bold'
     }`;
 
+  const handleNavClick = (page) => {
+    setActivePage(page);
+    if (setMobileOpen) setMobileOpen(false); // Close sidebar on mobile after clicking
+  };
+
   return (
-    <aside className="w-60 bg-primary text-white p-5 flex flex-col h-screen shrink-0 select-none">
-      <h2 className="text-xl font-light pb-3 mb-3 border-b border-white/10 truncate">
-        {db.companyName}
-      </h2>
+    <>
+      {/* Mobile Backdrop */}
+      {mobileOpen && (
+        <div 
+          onClick={() => setMobileOpen(false)} 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+        ></div>
+      )}
 
-      <div className="bg-black/20 p-3 rounded-md mb-6 text-xs flex justify-between items-center">
-        <div className="flex flex-col">
-          <strong className="text-sm">{currentUser?.name}</strong>
-          <span className="text-accent font-semibold">
-            {isAdmin ? "System Admin" : currentUser?.branch}
-          </span>
-        </div>
-        <div className="text-xl">👤</div>
-      </div>
+      <aside className={`
+        fixed md:static inset-y-0 left-0 z-50
+        w-64 bg-primary text-white p-5 flex flex-col h-screen shrink-0 select-none
+        transform transition-transform duration-300 ease-in-out
+        ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <h2 className="text-xl font-light pb-3 mb-3 border-b border-white/10 truncate">
+          {db.currentWorkspace}
+        </h2>
 
-      <nav className="flex-1 space-y-1">
-        {isAdmin && (
-          <>
-            <div onClick={() => setActivePage('dashboardPage')} className={navItemClass('dashboardPage')}>
-              📊 Global Dashboard
-            </div>
-            <div onClick={() => setActivePage('businessPage')} className={navItemClass('businessPage')}>
-              🏢 Branch Locator
-            </div>
-            <div className="border-t border-white/10 my-4"></div>
-          </>
-        )}
-
-        <div onClick={() => setActivePage('accountPage')} className={navItemClass('accountPage')}>
-          🔐 My Account
-        </div>
-
-        {isAdmin && (
-          <div onClick={() => setActivePage('adminSettingsPage')} className={navItemClass('adminSettingsPage')}>
-            ⚙️ Admin & Staff
+        <div className="bg-black/20 p-3 rounded-md mb-6 text-xs flex justify-between items-center">
+          <div className="flex flex-col truncate">
+            <strong className="text-sm truncate">{currentUser?.name}</strong>
+            <span className="text-accent font-semibold truncate">
+              {isAdmin ? "System Admin" : currentUser?.branch}
+            </span>
           </div>
-        )}
-      </nav>
+          <div className="text-xl shrink-0">👤</div>
+        </div>
 
-      <button
-        onClick={logout}
-        className="mt-auto p-3 bg-danger rounded-md text-center font-bold text-sm hover:bg-red-600 transition"
-      >
-        Logout System
-      </button>
-    </aside>
+        <nav className="flex-1 space-y-1 overflow-y-auto">
+          {isAdmin && (
+            <>
+              <div onClick={() => handleNavClick('dashboardPage')} className={navItemClass('dashboardPage')}>
+                📊 Global Dashboard
+              </div>
+              <div onClick={() => handleNavClick('businessPage')} className={navItemClass('businessPage')}>
+                🏢 Branch Locator
+              </div>
+              <div className="border-t border-white/10 my-4"></div>
+            </>
+          )}
+
+          <div onClick={() => handleNavClick('accountPage')} className={navItemClass('accountPage')}>
+            🔐 My Account
+          </div>
+
+          {isAdmin && (
+            <div onClick={() => handleNavClick('adminSettingsPage')} className={navItemClass('adminSettingsPage')}>
+              ⚙️ Admin & Staff
+            </div>
+          )}
+        </nav>
+
+        <button
+          onClick={() => { logout(); if(setMobileOpen) setMobileOpen(false); }}
+          className="mt-auto p-3 bg-danger rounded-md text-center font-bold text-sm hover:bg-red-600 transition shrink-0"
+        >
+          Logout System
+        </button>
+      </aside>
+    </>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from './context/AppContext';
 import { AuthPortal } from './components/AuthPortal';
 import { Sidebar } from './components/Sidebar';
@@ -12,6 +12,7 @@ import { AdminSettingsPage } from './pages/AdminSettingsPage';
 
 export function AppContent() {
   const { currentUser, activePage, toast, confirmState, closeConfirm } = useApp();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   if (!currentUser) {
     return <AuthPortal />;
@@ -20,23 +21,23 @@ export function AppContent() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-gray-100 relative">
       
-      {/* 🟢 Standard Toast Notification (Top Center) */}
+      {/* Toast Notification Component (Top Center) */}
       <div 
-        className={`fixed top-6 left-1/2 -translate-x-1/2 z-[80] transform transition-all duration-300 ease-out ${
+        className={`fixed top-6 left-1/2 -translate-x-1/2 z-[80] transform transition-all duration-300 ease-out w-11/12 max-w-md text-center ${
           toast.visible ? 'translate-y-0 opacity-100 scale-100' : '-translate-y-8 opacity-0 scale-95 pointer-events-none'
         }`}
       >
-        <div className={`bg-white px-6 py-3 rounded-full shadow-lg border-l-4 flex items-center gap-3 ${
+        <div className={`bg-white px-6 py-3 rounded-full shadow-lg border-l-4 inline-flex items-center justify-center gap-3 ${
           toast.type === 'success' ? 'border-green-500 text-green-600' : 'border-red-500 text-red-600'
         }`}>
-          <span className="font-bold text-sm">{toast.message}</span>
+          <span className="font-bold text-xs sm:text-sm">{toast.message}</span>
         </div>
       </div>
 
-      {/* ⚠️ Interactive Confirmation Pop-up (Top Center) */}
+      {/* Interactive Confirmation Pop-up */}
       {confirmState.visible && (
-        <div className="fixed inset-0 z-[70] flex items-start justify-center pt-24 bg-black/30 backdrop-blur-sm transition-opacity">
-          <div className="bg-white p-6 rounded-xl shadow-2xl border-t-4 border-warning w-88 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[70] flex items-start justify-center pt-24 px-4 bg-black/30 backdrop-blur-sm transition-opacity">
+          <div className="bg-white p-6 rounded-xl shadow-2xl border-t-4 border-warning w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
             <h3 className="text-warning text-lg font-bold flex items-center gap-2 mb-2">
               ⚠️ Warning
             </h3>
@@ -64,10 +65,13 @@ export function AppContent() {
         </div>
       )}
 
-      <Sidebar />
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <Navbar />
-        <main className="flex-1 overflow-y-auto p-6">
+      {/* Sidebar Drawer */}
+      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+
+      {/* Main App Container */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden w-full">
+        <Navbar setMobileOpen={setMobileOpen} />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {activePage === 'dashboardPage' && <DashboardPage />}
           {activePage === 'businessPage' && <BusinessPage />}
           {activePage === 'branchDetailPage' && <BranchDetailPage />}
