@@ -32,6 +32,92 @@ Proactive Expiry Management: Automatically monitor incoming inventory dates and 
 # System Architecture & Technology Stack
 The system is built as a Single Page Application (SPA) prioritizing speed, modularity, and real-time data binding.
 
+  mermaid
+  graph TD
+      subgraph Client Application ["Client Application (React.js)"]
+          direction TB
+          UI_Dash[Global Dashboard]
+          UI_POS[POS & Inventory]
+          UI_Comms[Branch Comms Hub]
+          UI_Search[Global Search]
+        
+        Context((AppContext \nGlobal State))
+        
+        UI_Dash <-->|Read Metrics| Context
+        UI_POS <-->|Read/Write Stock| Context
+        UI_Search <-->|Query Global Stock| Context
+        UI_Comms <-->|Read/Write DMs| Context
+    end
+
+    subgraph Firebase Cloud ["Firebase Backend (BaaS)"]
+        direction TB
+        Firestore[(Firestore NoSQL)]
+        
+        C_Users[[_users]]
+        C_Sales[[_sales]]
+        C_Invoices[[_invoices]]
+        C_Messages[[_messages]]
+        C_Branches[[_branches]]
+        
+        Firestore --- C_Users
+        Firestore --- C_Sales
+        Firestore --- C_Invoices
+        Firestore --- C_Messages
+        Firestore --- C_Branches
+    end
+
+    %% Data Flow Lines
+    Context ==>|1. Async Writes (addDoc, updateDoc)| Firestore
+    Firestore -.->|2. Real-Time Listeners (onSnapshot)| Context
+    
+    %% Styling
+    classDef client fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff;
+    classDef backend fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#fff;
+    classDef state fill:#10b981,stroke:#059669,stroke-width:3px,color:#fff;
+    
+    class UI_Dash,UI_POS,UI_Comms,UI_Search client;
+    class Firestore,C_Users,C_Sales,C_Invoices,C_Messages,C_Branches backend;
+    class Context state;
+
+# How It Works: The Lifecycle of Data
+Enterprise OS does not use a traditional REST API (where the client constantly asks the server "has anything changed?"). Instead, it uses an Event-Driven, Real-Time Sync model. Here is exactly how data moves through the system:
+
+1. The AppContext (The Brain)
+When a user logs in, the AppContext.jsx mounts and immediately opens continuous WebSocket connections (onSnapshot) to the Firebase Firestore database for their specific workspace.
+
+It downloads all Users, Sales, Invoices, and Messages into a central JSON state called dbData.
+
+All UI components (Dashboard, POS, Comms) read their information directly from this local dbData state, making the app feel instantaneous with zero loading spinners.
+
+2. Writing Data (e.g., Making a Sale or Sending a Message)
+When a branch employee completes a transaction in the POS:
+
+The UI component calls checkoutSale() inside the AppContext.
+
+The AppContext bundles the cart items and pushes an addDoc request to the Firebase Cloud.
+
+Crucially, the UI does not wait for a refreshed page.
+
+3. Real-Time Propagation (The Magic)
+The moment that new sale is saved in the Firestore Cloud database:
+
+Firebase instantly broadcasts that change back to every connected device globally.
+
+The onSnapshot listener in the AppContext catches the new sale and updates dbData.
+
+Because React watches dbData, the UI instantly re-renders.
+
+The Result: If Branch A makes a sale, the Global Dashboard on the Admin's screen updates the total revenue, top-selling items, and global assets in less than 300 milliseconds.
+
+4. On-the-Fly Aggregation (No Redundant Tables)
+To prevent databases from becoming out-of-sync, Enterprise OS relies heavily on client-side calculation rather than database triggers.
+
+There is no database table for "Current Stock."
+
+When you open the POS, the app looks at invoices (Stock In) and subtracts sales (Stock Out) dynamically.
+
+If a transfer request is approved, the system simply writes an automated "Sale" for the sender and an automated "Invoice" for the receiver. The real-time aggregation engine handles the rest, ensuring that a branch can never sell inventory they do not mathematically possess.
+
 ## Front-End (Client-Side)
 React.js (Functional Components & Hooks): The core UI framework.
 
@@ -101,12 +187,13 @@ npm install
 Create a .env file in the root directory and add your Firebase configuration variables:
 
 ## Code snippet
-VITE_FIREBASE_API_KEY=your_api_key
-VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
-VITE_FIREBASE_APP_ID=your_app_id
+
+    VITE_FIREBASE_API_KEY=your_api_key
+    VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain
+    VITE_FIREBASE_PROJECT_ID=your_project_id
+    VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+    VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+    VITE_FIREBASE_APP_ID=your_app_id
 
 ## 4. Initialize the Project
 Bash
@@ -189,13 +276,13 @@ Inbox Behavior: There is no "Inbox" button. To check if Branch B replied to Bran
 ## The Interactive Stock Transfer Lifecycle
 When an Admin requests stock from the Search Page, a message is generated with a transferData object:
 
-JSON
-{
-  "item": "Samsung TV",
-  "qty": 5,
-  "requesterBranch": "Accra Main",
-  "status": "pending"
-}
+    JSON
+    {
+      "item": "Samsung TV",
+      "qty": 5,
+      "requesterBranch": "Accra Main",
+      "status": "pending"
+    }
 
 ## The UI Reaction:
 
@@ -236,69 +323,73 @@ The database uses dynamic collection prefixes based on the Workspace name to all
 ## 1. workspaces (Collection)
 Tracks registered companies.
 
-JSON
-{
-  "name": "AlphaCorp"
-}
+    JSON
+    {
+      "name": "AlphaCorp"
+    }
 
 ## 2. [Workspace]_users (Collection)
-JSON
-{
-  "name": "John Doe",
-  "username": "john.d",
-  "password": "secure123",
-  "phone": "1234567890",
-  "jobRole": "Manager",
-  "sysRole": "admin",
-  "branch": "Accra Main",
-  "adminLocation": "Accra Main" 
-}
+
+    JSON
+    {
+      "name": "John Doe",
+      "username": "john.d",
+      "password": "secure123",
+      "phone": "1234567890",
+      "jobRole": "Manager",
+      "sysRole": "admin",
+      "branch": "Accra Main",
+      "adminLocation": "Accra Main" 
+    }
 
 ## 3. [Workspace]_sales (Collection)
-JSON
-{
-  "saleRef": "SL-9482",
-  "date": "2026-08-19",
-  "branch": "Accra Main",
-  "cashier": "John Doe",
-  "total": 450.00,
-  "items": [
-    { "item": "Widget", "qty": 2, "price": 225.00, "subtotal": 450.00 }
-  ]
-}
+
+    JSON
+    {
+      "saleRef": "SL-9482",
+      "date": "2026-08-19",
+      "branch": "Accra Main",
+      "cashier": "John Doe",
+      "total": 450.00,
+      "items": [
+        { "item": "Widget", "qty": 2, "price": 225.00, "subtotal": 450.00 }
+      ]
+    }
 
 ## 4. [Workspace]_invoices (Collection)
-JSON
-{
-  "invNo": "INV-101",
-  "date": "2026-08-01",
-  "branch": "Tema Distribution",
-  "supplier": "Acme Corp",
-  "item": "Widget",
-  "qty": 100,
-  "cost": 150.00,
-  "retailPrice": 225.00,
-  "total": 15000.00,
-  "expiry": "2026-09-15"
-}
+
+    JSON
+    {
+      "invNo": "INV-101",
+      "date": "2026-08-01",
+      "branch": "Tema Distribution",
+      "supplier": "Acme Corp",
+      "item": "Widget",
+      "qty": 100,
+      "cost": 150.00,
+      "retailPrice": 225.00,
+      "total": 15000.00,
+      "expiry": "2026-09-15"
+    }
 
 ## 5. [Workspace]_messages (Collection)
-JSON
-{
-  "text": "📦 [Stock Transfer Request]...",
-  "senderId": "user123",
-  "senderName": "John Doe",
-  "senderRole": "admin",
-  "senderBranch": "Accra Main",
-  "targetBranch": "Tema Distribution",
-  "timestamp": "2026-08-19T14:30:00Z",
-  "transferData": {
-    "item": "Widget",
-    "qty": 5,
-    "requesterBranch": "Accra Main",
-    "status": "pending"
-  }
-}
+
+    JSON
+    {
+      "text": "📦 [Stock Transfer Request]...",
+      "senderId": "user123",
+      "senderName": "John Doe",
+      "senderRole": "admin",
+      "senderBranch": "Accra Main",
+      "targetBranch": "Tema Distribution",
+      "timestamp": "2026-08-19T14:30:00Z",
+      "transferData": {
+        "item": "Widget",
+        "qty": 5,
+        "requesterBranch": "Accra Main",
+        "status": "pending"
+      }
+    }
 
 # 13. Security, Privacy & Data Isolation
 ## Account Recovery
